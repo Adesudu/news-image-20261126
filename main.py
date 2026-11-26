@@ -1,24 +1,47 @@
-"""Entrypoint for the news-image-20261126 bounty.
+"""Deliver the pre-rendered front page for news-image-20261126.
 
-Renders a one-page newspaper front page summing up the world news of
-Thursday 26 November 2026 and writes it to entry.png in the output
-directory. The render is deterministic: the same bytes every run.
+The front page image is already in the repository as entry.png. This
+entrypoint only moves an exact copy of it into the directory the grader
+reads (MAKEFUN_OUTPUT_DIR, or "out" when that variable is empty or unset).
+Copying bytes keeps the output identical on every run, with no rendering
+work at grade time and no third-party imports. It also avoids importing
+the renderer module: the grader runs with python3 -P, which keeps the
+script's own directory off sys.path, so a sibling import would fail.
 """
 
 import os
+import shutil
+import sys
+from pathlib import Path
 
-from render import render_page_png
+
+SOURCE_IMAGE = "entry.png"
 
 
-def main():
-    out_dir = os.environ.get("MAKEFUN_OUTPUT_DIR", "/output")
-    os.makedirs(out_dir, exist_ok=True)
-    data = render_page_png()
-    path = os.path.join(out_dir, "entry.png")
-    with open(path, "wb") as f:
-        f.write(data)
-    print("wrote {} ({} bytes)".format(path, len(data)))
+def destination_dir() -> Path:
+    """Return the directory the grader reads for the output image."""
+    configured = os.environ.get("MAKEFUN_OUTPUT_DIR", "").strip()
+    return Path(configured) if configured else Path("out")
+
+
+def deliver(source: Path, directory: Path) -> Path:
+    """Copy the image into the destination directory, creating it first."""
+    directory.mkdir(parents=True, exist_ok=True)
+    target = directory / source.name
+    shutil.copyfile(source, target)
+    return target
+
+
+def main() -> int:
+    here = Path(__file__).resolve().parent
+    source = here / SOURCE_IMAGE
+    if not source.is_file():
+        print(f"error: {SOURCE_IMAGE} is missing next to main.py", file=sys.stderr)
+        return 1
+    target = deliver(source, destination_dir())
+    print(f"wrote {target}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
